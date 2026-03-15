@@ -1,0 +1,92 @@
+# Website Execution 
+
+cd backend
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+
+
+cd frontend
+npm run dev
+
+# Deployment Pipeline
+scp -i "PK1.pem" campusshield-ai.zip ubuntu@35.154.160.45:/home/ubuntu/ (shifting the zip file from local machine to ec2 instance 
+
+unzip campusshield.zip -d my-website
+cd my-website
+
+nano Dockerfile (inside backend dir) 
+FROM python:3.9-slim
+WORKDIR /app
+
+# Install dependencies (if you have a requirements.txt)
+# If you don't have one, we will install FastAPI/Flask/etc manually
+COPY app/requirements.txt . 
+RUN pip install --no-cache-dir -r requirements.txt || pip install fastapi uvicorn
+
+# Copy the app folder
+COPY app/ ./app/
+
+# Expose the port your python app runs on (usually 8000 or 5000)
+EXPOSE 8000
+
+# Command to run your python file
+CMD ["python", "app/main.py"]
+
+
+nano Dockerfile (inside frontend) 
+FROM node:18-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+
+# This line fixes the "Permission denied" error
+RUN chmod -R +x node_modules/.bin
+
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+
+
+sudo nano docker-compose.yml (in main project folder)
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    restart: always
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: always
+
+sudo docker system prune -f (for removing the unbuild files, not always necessary) 
+
+sudo docker compose up --build -d 
+
+
+
+# Pushing to the docker hub
+
+sudo docker login -u <usrname>
+
+sudo docker images
+
+# Tag the backend
+sudo docker tag campusshield-ai-backend yourusername/campusshield-backend:latest
+
+# Tag the frontend
+sudo docker tag campusshield-ai-frontend yourusername/campusshield-frontend:latest
+
+sudo docker push yourusername/campusshield-backend:latest
+sudo docker push yourusername/campusshield-frontend:latest
+
+sudo docker compose stop ( to stop the containers from running) 
+sudo docker logout (best practice) 
+
